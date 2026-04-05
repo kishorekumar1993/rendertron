@@ -1,34 +1,43 @@
 const express = require('express');
-const rendertron = require('rendertron-middleware');
+const puppeteer = require('puppeteer');
 
 const app = express();
 
-// 🔥 Your site URL
-const YOUR_SITE = 'https://revochamp.site';
-
-// Bot detection
-app.use(rendertron.makeMiddleware({
-  proxyUrl: 'http://localhost:3000/render',
-  userAgentPattern: /googlebot|bingbot|yandex|duckduckbot|baiduspider|facebookexternalhit|twitterbot|linkedinbot/i
-}));
-
+// 🔥 Prerender endpoint
 app.get('/render/*', async (req, res) => {
-  const url = req.params[0];
+  const targetUrl = req.params[0];
 
-  const browser = await require('puppeteer').launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  try {
+    const browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
 
-  const page = await browser.newPage();
-  await page.goto(url, { waitUntil: 'networkidle2' });
+    const page = await browser.newPage();
 
-  const html = await page.content();
+    await page.goto(targetUrl, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
 
-  await browser.close();
+    const html = await page.content();
 
-  res.send(html);
+    await browser.close();
+
+    res.send(html);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error rendering page');
+  }
 });
 
-app.listen(3000, () => {
-  console.log('Rendertron running on port 3000');
+// Health check
+app.get('/', (req, res) => {
+  res.send('Prerender service is running');
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Prerender running on port ${PORT}`);
 });
